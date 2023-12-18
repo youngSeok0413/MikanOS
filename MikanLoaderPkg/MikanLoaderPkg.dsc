@@ -24,7 +24,6 @@
   PrintLib|MdePkg/Library/BasePrintLib/BasePrintLib.inf
   UefiBootServicesTableLib|MdePkg/Library/UefiBootServicesTableLib/UefiBootServicesTableLib.inf
   UefiRuntimeServicesTableLib|MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib.inf
-  RegisterFilterLibNull|MdePkg/Library/RegisterFilterLibNull/RegisterFilterLibNull.inf
 
 #@range_begin(components)
 [Components]
