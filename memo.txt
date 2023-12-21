@@ -15,3 +15,13 @@ qemu-system-x86_64 \
 
 main)
 $HOME/osbook/devenv/run_qemu.sh /home/yschoi/edk2/Build/MikanLoaderX64/DEBUG_CLANG38/X64/Loader.efi
+
+
+compile)
+osbook_day03a
+
+clang++ -O2 -Wall --target=x86_64-elf -ffreestanding -mno-red-zone \
+-fno-exceptions -fno-rtti -std=c++17 -c main.cpp
+
+ld.lld --entry KernelMain -z norelro --image-base 0x100000 --static \
+-o kernel.elf main.o
