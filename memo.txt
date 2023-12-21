@@ -21,6 +21,8 @@ $HOME/osbook/devenv/run_qemu.sh /home/yschoi/edk2/Build/MikanLoaderX64/DEBUG_CLA
 compile)
 osbook_day03a
 
+source $HOME/osbook/devenv/buildenv.sh
+
 rm kernel.elf main.o
 
 clang++ $CPPFLAGS -O2 -Wall --target=x86_64-elf -ffreestanding -mno-red-zone \
