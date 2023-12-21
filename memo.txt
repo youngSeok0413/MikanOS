@@ -16,12 +16,15 @@ qemu-system-x86_64 \
 main)
 $HOME/osbook/devenv/run_qemu.sh /home/yschoi/edk2/Build/MikanLoaderX64/DEBUG_CLANG38/X64/Loader.efi
 
+$HOME/osbook/devenv/run_qemu.sh /home/yschoi/edk2/Build/MikanLoaderX64/DEBUG_CLANG38/X64/Loader.efi $HOME/workspace/mikanos/kernel/kernel.elf
 
 compile)
 osbook_day03a
 
-clang++ -O2 -Wall --target=x86_64-elf -ffreestanding -mno-red-zone \
+rm kernel.elf main.o
+
+clang++ $CPPFLAGS -O2 -Wall --target=x86_64-elf -ffreestanding -mno-red-zone \
 -fno-exceptions -fno-rtti -std=c++17 -c main.cpp
 
-ld.lld --entry KernelMain -z norelro --image-base 0x100000 --static \
+ld.lld $LDFLAGS --entry KernelMain -z norelro --image-base 0x100000 --static \
 -o kernel.elf main.o
