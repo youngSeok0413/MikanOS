@@ -1,3 +1,4 @@
+#source $HOME/osbook/devenv/buildenv.sh
 TARGET = kernel.elf
 OBJS = main.o
 
