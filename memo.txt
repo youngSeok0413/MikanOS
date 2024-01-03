@@ -11,7 +11,8 @@ qemu-system-x86_64 \
 -drive if=pflash,file=/home/yschoi/osbook/devenv/OVMF_VARS.fd \
 -hda disk.img
 
-
+rm -rf *.o *.bin .*.d *.elf ./usb/*.o ./usb/.*.d ./usb/classdriver/*.o ./usb/classdriver/.*.d ./usb/xhci/*.o ./usb/xhci/.*.d
+sudo python3 ../tools/makefont.py -o $@ $<
 
 main)
 $HOME/osbook/devenv/run_qemu.sh /home/yschoi/edk2/Build/MikanLoaderX64/DEBUG_CLANG38/X64/Loader.efi
