@@ -20,6 +20,8 @@
 #include "usb/classdriver/mouse.hpp"
 #include "usb/xhci/xhci.hpp"
 #include "usb/xhci/trb.hpp"
+#include "interrupt.hpp"
+#include "asmfunc.h"
 
 const PixelColor kDesktopBGColor{45, 118, 237};
 const PixelColor kDesktopFGColor{255, 255, 255};
@@ -82,6 +84,23 @@ void SwitchEhci2Xhci(const pci::Device &xhc_dev)
         superspeed_ports, ehci2xhci_ports);
 }
 
+// xhci handler
+usb::xhci::Controller *xhc;
+
+__attribute__((interrupt)) void IntHandlerXHCI(InterruptFrame *frame)
+{
+    while (xhc->PrimaryEventRing()->HasFront())
+    {
+        if (auto err = ProcessEvent(*xhc))
+        {
+            Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
+                err.Name(), err.File(), err.Line());
+        }
+    }
+
+    NotifyEndOfInterrupt();
+}
+
 extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
 {
     switch (frame_buffer_config.pixel_format)
@@ -121,8 +140,8 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
     printk("Welcome to MikanOS!\n");
     SetLogLevel(kWarn);
 
-    //mouse cursor
-    mouse_cursor = new(mouse_cursor_buf) MouseCursor{pixel_writer, kDesktopBGColor, {300, 200}};
+    // mouse cursor
+    mouse_cursor = new (mouse_cursor_buf) MouseCursor{pixel_writer, kDesktopBGColor, {300, 200}};
 
     // show devices
     auto err = pci::ScanAllBus();
@@ -158,6 +177,20 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
             xhc_dev->bus, xhc_dev->device, xhc_dev->function);
     }
 
+    // load idt
+    const uint16_t cs = GetCS();
+    SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+                reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
+    LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
+
+    // configure msi
+    const uint8_t bsp_local_apic_id =
+        *reinterpret_cast<const uint32_t *>(0xfee00020) >> 24;
+    pci::ConfigureMSIFixedDestination(
+        *xhc_dev, bsp_local_apic_id,
+        pci::MSITriggerMode::kLevel, pci::MSIDeliveryMode::kFixed,
+        InterruptVector::kXHCI, 0);
+
     // read bar
     const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
     Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
@@ -179,6 +212,9 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
     Log(kInfo, "xHC starting\n");
     xhc.Run();
 
+    ::xhc = &xhc;
+    __asm__("sti");
+
     // configure port
     usb::HIDMouseDriver::default_observer = MouseObserver;
 
@@ -195,16 +231,6 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
                     err.Name(), err.File(), err.Line());
                 continue;
             }
-        }
-    }
-
-    // receive event
-    while (1)
-    {
-        if (auto err = ProcessEvent(xhc))
-        {
-            Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
-                err.Name(), err.File(), err.Line());
         }
     }
 
