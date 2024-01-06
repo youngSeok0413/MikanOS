@@ -5,18 +5,22 @@
 
 #include "console.hpp"
 
-namespace {
+namespace
+{
   LogLevel log_level = kWarn;
 }
 
-extern Console* console;
+extern Console *console;
 
-void SetLogLevel(LogLevel level) {
+void SetLogLevel(LogLevel level)
+{
   log_level = level;
 }
 
-int Log(LogLevel level, const char* format, ...) {
-  if (level > log_level) {
+int Log(LogLevel level, const char *format, ...)
+{
+  if (level > log_level)
+  {
     return 0;
   }
 

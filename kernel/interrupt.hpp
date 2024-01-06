@@ -9,19 +9,22 @@
 #include <array>
 #include <cstdint>
 
-enum class DescriptorType {
-  kUpper8Bytes   = 0,
-  kLDT           = 2,
-  kTSSAvailable  = 9,
-  kTSSBusy       = 11,
-  kCallGate      = 12,
+enum class DescriptorType
+{
+  kUpper8Bytes = 0,
+  kLDT = 2,
+  kTSSAvailable = 9,
+  kTSSBusy = 11,
+  kCallGate = 12,
   kInterruptGate = 14,
-  kTrapGate      = 15,
+  kTrapGate = 15,
 };
 
-union InterruptDescriptorAttribute {
+union InterruptDescriptorAttribute
+{
   uint16_t data;
-  struct {
+  struct
+  {
     uint16_t interrupt_stack_table : 3;
     uint16_t : 5;
     DescriptorType type : 4;
@@ -31,7 +34,8 @@ union InterruptDescriptorAttribute {
   } __attribute__((packed)) bits;
 } __attribute__((packed));
 
-struct InterruptDescriptor {
+struct InterruptDescriptor
+{
   uint16_t offset_low;
   uint16_t segment_selector;
   InterruptDescriptorAttribute attr;
@@ -46,7 +50,8 @@ constexpr InterruptDescriptorAttribute MakeIDTAttr(
     DescriptorType type,
     uint8_t descriptor_privilege_level,
     bool present = true,
-    uint8_t interrupt_stack_table = 0) {
+    uint8_t interrupt_stack_table = 0)
+{
   InterruptDescriptorAttribute attr{};
   attr.bits.interrupt_stack_table = interrupt_stack_table;
   attr.bits.type = type;
@@ -55,19 +60,22 @@ constexpr InterruptDescriptorAttribute MakeIDTAttr(
   return attr;
 }
 
-void SetIDTEntry(InterruptDescriptor& desc,
+void SetIDTEntry(InterruptDescriptor &desc,
                  InterruptDescriptorAttribute attr,
                  uint64_t offset,
                  uint16_t segment_selector);
 
-class InterruptVector {
- public:
-  enum Number {
+class InterruptVector
+{
+public:
+  enum Number
+  {
     kXHCI = 0x40,
   };
 };
 
-struct InterruptFrame {
+struct InterruptFrame
+{
   uint64_t rip;
   uint64_t cs;
   uint64_t rflags;

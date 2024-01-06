@@ -31,12 +31,13 @@ const PixelColor kDesktopBGColor{45, 118, 237};
 const PixelColor kDesktopFGColor{255, 255, 255};
 
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
-PixelWriter* pixel_writer;
+PixelWriter *pixel_writer;
 
 char console_buf[sizeof(Console)];
-Console* console;
+Console *console;
 
-int printk(const char* format, ...) {
+int printk(const char *format, ...)
+{
   va_list ap;
   int result;
   char s[1024];
@@ -50,63 +51,72 @@ int printk(const char* format, ...) {
 }
 
 char mouse_cursor_buf[sizeof(MouseCursor)];
-MouseCursor* mouse_cursor;
+MouseCursor *mouse_cursor;
 
-void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
+void MouseObserver(int8_t displacement_x, int8_t displacement_y)
+{
   mouse_cursor->MoveRelative({displacement_x, displacement_y});
 }
 
-void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
+void SwitchEhci2Xhci(const pci::Device &xhc_dev)
+{
   bool intel_ehc_exist = false;
-  for (int i = 0; i < pci::num_device; ++i) {
+  for (int i = 0; i < pci::num_device; ++i)
+  {
     if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x20u) /* EHCI */ &&
-        0x8086 == pci::ReadVendorId(pci::devices[i])) {
+        0x8086 == pci::ReadVendorId(pci::devices[i]))
+    {
       intel_ehc_exist = true;
       break;
     }
   }
-  if (!intel_ehc_exist) {
+  if (!intel_ehc_exist)
+  {
     return;
   }
 
   uint32_t superspeed_ports = pci::ReadConfReg(xhc_dev, 0xdc); // USB3PRM
-  pci::WriteConfReg(xhc_dev, 0xd8, superspeed_ports); // USB3_PSSEN
-  uint32_t ehci2xhci_ports = pci::ReadConfReg(xhc_dev, 0xd4); // XUSB2PRM
-  pci::WriteConfReg(xhc_dev, 0xd0, ehci2xhci_ports); // XUSB2PR
+  pci::WriteConfReg(xhc_dev, 0xd8, superspeed_ports);          // USB3_PSSEN
+  uint32_t ehci2xhci_ports = pci::ReadConfReg(xhc_dev, 0xd4);  // XUSB2PRM
+  pci::WriteConfReg(xhc_dev, 0xd0, ehci2xhci_ports);           // XUSB2PR
   Log(kDebug, "SwitchEhci2Xhci: SS = %02, xHCI = %02x\n",
       superspeed_ports, ehci2xhci_ports);
 }
 
-usb::xhci::Controller* xhc;
+usb::xhci::Controller *xhc;
 
 // #@@range_begin(queue_message)
-struct Message {
-  enum Type {
+struct Message
+{
+  enum Type
+  {
     kInterruptXHCI,
   } type;
 };
 
-ArrayQueue<Message>* main_queue;
+ArrayQueue<Message> *main_queue;
 // #@@range_end(queue_message)
 
 // #@@range_begin(xhci_handler)
-__attribute__((interrupt))
-void IntHandlerXHCI(InterruptFrame* frame) {
+__attribute__((interrupt)) void IntHandlerXHCI(InterruptFrame *frame)
+{
   main_queue->Push(Message{Message::kInterruptXHCI});
   NotifyEndOfInterrupt();
 }
 // #@@range_end(xhci_handler)
 
-extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
-  switch (frame_buffer_config.pixel_format) {
-    case kPixelRGBResv8BitPerColor:
-      pixel_writer = new(pixel_writer_buf)
+extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
+{
+  switch (frame_buffer_config.pixel_format)
+  {
+  case kPixelRGBResv8BitPerColor:
+    pixel_writer = new (pixel_writer_buf)
         RGBResv8BitPerColorPixelWriter{frame_buffer_config};
-      break;
-    case kPixelBGRResv8BitPerColor:
-      pixel_writer = new(pixel_writer_buf)
+    break;
+  case kPixelBGRResv8BitPerColor:
+    pixel_writer = new (pixel_writer_buf)
         BGRResv8BitPerColorPixelWriter{frame_buffer_config};
-      break;
+    break;
   }
 
   const int kFrameWidth = frame_buffer_config.horizontal_resolution;
@@ -129,15 +139,13 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
                 {30, 30},
                 {160, 160, 160});
 
-  console = new(console_buf) Console{
-    *pixel_writer, kDesktopFGColor, kDesktopBGColor
-  };
+  console = new (console_buf) Console{
+      *pixel_writer, kDesktopFGColor, kDesktopBGColor};
   printk("Welcome to MikanOS!\n");
   SetLogLevel(kWarn);
 
-  mouse_cursor = new(mouse_cursor_buf) MouseCursor{
-    pixel_writer, kDesktopBGColor, {300, 200}
-  };
+  mouse_cursor = new (mouse_cursor_buf) MouseCursor{
+      pixel_writer, kDesktopBGColor, {300, 200}};
 
   std::array<Message, 32> main_queue_data;
   ArrayQueue<Message> main_queue{main_queue_data};
@@ -146,8 +154,9 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   auto err = pci::ScanAllBus();
   Log(kDebug, "ScanAllBus: %s\n", err.Name());
 
-  for (int i = 0; i < pci::num_device; ++i) {
-    const auto& dev = pci::devices[i];
+  for (int i = 0; i < pci::num_device; ++i)
+  {
+    const auto &dev = pci::devices[i];
     auto vendor_id = pci::ReadVendorId(dev);
     auto class_code = pci::ReadClassCode(dev.bus, dev.device, dev.function);
     Log(kDebug, "%d.%d.%d: vend %04x, class %08x, head %02x\n",
@@ -156,18 +165,22 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   }
 
   // Intel 製を優先して xHC を探す
-  pci::Device* xhc_dev = nullptr;
-  for (int i = 0; i < pci::num_device; ++i) {
-    if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
+  pci::Device *xhc_dev = nullptr;
+  for (int i = 0; i < pci::num_device; ++i)
+  {
+    if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u))
+    {
       xhc_dev = &pci::devices[i];
 
-      if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
+      if (0x8086 == pci::ReadVendorId(*xhc_dev))
+      {
         break;
       }
     }
   }
 
-  if (xhc_dev) {
+  if (xhc_dev)
+  {
     Log(kInfo, "xHC has been found: %d.%d.%d\n",
         xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
@@ -178,7 +191,7 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
 
   const uint8_t bsp_local_apic_id =
-    *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+      *reinterpret_cast<const uint32_t *>(0xfee00020) >> 24;
   pci::ConfigureMSIFixedDestination(
       *xhc_dev, bsp_local_apic_id,
       pci::MSITriggerMode::kLevel, pci::MSIDeliveryMode::kFixed,
@@ -191,7 +204,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
 
   usb::xhci::Controller xhc{xhc_mmio_base};
 
-  if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
+  if (0x8086 == pci::ReadVendorId(*xhc_dev))
+  {
     SwitchEhci2Xhci(*xhc_dev);
   }
   {
@@ -206,12 +220,15 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
 
   usb::HIDMouseDriver::default_observer = MouseObserver;
 
-  for (int i = 1; i <= xhc.MaxPorts(); ++i) {
+  for (int i = 1; i <= xhc.MaxPorts(); ++i)
+  {
     auto port = xhc.PortAt(i);
     Log(kDebug, "Port %d: IsConnected=%d\n", i, port.IsConnected());
 
-    if (port.IsConnected()) {
-      if (auto err = ConfigurePort(xhc, port)) {
+    if (port.IsConnected())
+    {
+      if (auto err = ConfigurePort(xhc, port))
+      {
         Log(kError, "failed to configure port: %s at %s:%d\n",
             err.Name(), err.File(), err.Line());
         continue;
@@ -220,10 +237,12 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   }
 
   // #@@range_begin(event_loop)
-  while (true) {
+  while (true)
+  {
     // #@@range_begin(get_front_message)
     __asm__("cli");
-    if (main_queue.Count() == 0) {
+    if (main_queue.Count() == 0)
+    {
       __asm__("sti\n\thlt");
       continue;
     }
@@ -233,10 +252,13 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     __asm__("sti");
     // #@@range_end(get_front_message)
 
-    switch (msg.type) {
+    switch (msg.type)
+    {
     case Message::kInterruptXHCI:
-      while (xhc.PrimaryEventRing()->HasFront()) {
-        if (auto err = ProcessEvent(xhc)) {
+      while (xhc.PrimaryEventRing()->HasFront())
+      {
+        if (auto err = ProcessEvent(xhc))
+        {
           Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
               err.Name(), err.File(), err.Line());
         }
@@ -249,6 +271,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   // #@@range_end(event_loop)
 }
 
-extern "C" void __cxa_pure_virtual() {
-  while (1) __asm__("hlt");
+extern "C" void __cxa_pure_virtual()
+{
+  while (1)
+    __asm__("hlt");
 }
