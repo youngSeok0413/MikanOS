@@ -4,6 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/kernel/**",
                 "${HOME}/edk2/**",
                 "${HOME}/edk2/MdePkg/**"
             ],
