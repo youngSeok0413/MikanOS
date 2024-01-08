@@ -1,9 +1,3 @@
-/**
- * @file main.cpp
- *
- * カーネル本体のプログラムを書いたファイル．
- */
-
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
@@ -12,6 +6,7 @@
 #include <vector>
 
 #include "frame_buffer_config.hpp"
+#include "memory_map.hpp"
 #include "graphics.hpp"
 #include "mouse.hpp"
 #include "font.hpp"
@@ -85,7 +80,6 @@ void SwitchEhci2Xhci(const pci::Device &xhc_dev)
 
 usb::xhci::Controller *xhc;
 
-// #@@range_begin(queue_message)
 struct Message
 {
   enum Type
@@ -95,17 +89,14 @@ struct Message
 };
 
 ArrayQueue<Message> *main_queue;
-// #@@range_end(queue_message)
 
-// #@@range_begin(xhci_handler)
 __attribute__((interrupt)) void IntHandlerXHCI(InterruptFrame *frame)
 {
   main_queue->Push(Message{Message::kInterruptXHCI});
   NotifyEndOfInterrupt();
 }
-// #@@range_end(xhci_handler)
 
-extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
+extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config, const MemoryMap &memory_map)
 {
   switch (frame_buffer_config.pixel_format)
   {
@@ -144,6 +135,32 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
   printk("Welcome to MikanOS!\n");
   SetLogLevel(kWarn);
 
+  const std::array available_memory_types{
+      MemoryType::kEfiBootServicesCode,
+      MemoryType::kEfiBootServicesData,
+      MemoryType::kEfiConventionalMemory,
+  };
+
+  printk("memory_map: %p\n", &memory_map);
+  for (uintptr_t iter = reinterpret_cast<uintptr_t>(memory_map.buffer);
+       iter < reinterpret_cast<uintptr_t>(memory_map.buffer) + memory_map.map_size;
+       iter += memory_map.descriptor_size)
+  {
+    auto desc = reinterpret_cast<MemoryDescriptor *>(iter);
+    for (int i = 0; i < available_memory_types.size(); i++)
+    {
+      if (desc->type == available_memory_types[i])
+      {
+        printk("type = %u, phys = %08lx - %08lx, pages = %lu, attr = %08lx\n",
+               desc->type,
+               desc->physical_start,
+               desc->physical_start + desc->number_of_pages * 4096 - 1,
+               desc->number_of_pages,
+               desc->attribute);
+      }
+    }
+  }
+
   mouse_cursor = new (mouse_cursor_buf) MouseCursor{
       pixel_writer, kDesktopBGColor, {300, 200}};
 
@@ -164,7 +181,6 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
         vendor_id, class_code, dev.header_type);
   }
 
-  // Intel 製を優先して xHC を探す
   pci::Device *xhc_dev = nullptr;
   for (int i = 0; i < pci::num_device; ++i)
   {
@@ -236,10 +252,8 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
     }
   }
 
-  // #@@range_begin(event_loop)
   while (true)
   {
-    // #@@range_begin(get_front_message)
     __asm__("cli");
     if (main_queue.Count() == 0)
     {
@@ -250,7 +264,6 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
     Message msg = main_queue.Front();
     main_queue.Pop();
     __asm__("sti");
-    // #@@range_end(get_front_message)
 
     switch (msg.type)
     {
@@ -268,7 +281,6 @@ extern "C" void KernelMain(const FrameBufferConfig &frame_buffer_config)
       Log(kError, "Unknown message type: %d\n", msg.type);
     }
   }
-  // #@@range_end(event_loop)
 }
 
 extern "C" void __cxa_pure_virtual()
