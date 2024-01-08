@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "*.asm": "cpp"
+        "*.asm": "cpp",
+        "array": "cpp"
     }
 }

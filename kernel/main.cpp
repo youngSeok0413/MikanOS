@@ -23,6 +23,7 @@
 #include "queue.hpp"
 #include "segment.hpp"
 #include "paging.hpp"
+#include "memory_manager.hpp"
 
 const PixelColor kDesktopBGColor{45, 118, 237};
 const PixelColor kDesktopFGColor{255, 255, 255};
@@ -46,6 +47,11 @@ int printk(const char *format, ...)
   console->PutString(s);
   return result;
 }
+
+// #@@range_begin(memman_buf)
+char memory_manager_buf[sizeof(BitmapMemoryManager)];
+BitmapMemoryManager *memory_manager;
+// #@@range_end(memman_buf)
 
 char mouse_cursor_buf[sizeof(MouseCursor)];
 MouseCursor *mouse_cursor;
@@ -100,25 +106,27 @@ __attribute__((interrupt)) void IntHandlerXHCI(InterruptFrame *frame)
 
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
-extern "C" void KernelMainNewStack(const FrameBufferConfig &frame_buffer_config_ref, const MemoryMap &memory_map_ref)
+extern "C" void KernelMainNewStack(
+    const FrameBufferConfig &frame_buffer_config_ref,
+    const MemoryMap &memory_map_ref)
 {
   FrameBufferConfig frame_buffer_config{frame_buffer_config_ref};
   MemoryMap memory_map{memory_map_ref};
 
-  switch (frame_buffer_config_ref.pixel_format)
+  switch (frame_buffer_config.pixel_format)
   {
   case kPixelRGBResv8BitPerColor:
     pixel_writer = new (pixel_writer_buf)
-        RGBResv8BitPerColorPixelWriter{frame_buffer_config_ref};
+        RGBResv8BitPerColorPixelWriter{frame_buffer_config};
     break;
   case kPixelBGRResv8BitPerColor:
     pixel_writer = new (pixel_writer_buf)
-        BGRResv8BitPerColorPixelWriter{frame_buffer_config_ref};
+        BGRResv8BitPerColorPixelWriter{frame_buffer_config};
     break;
   }
 
-  const int kFrameWidth = frame_buffer_config_ref.horizontal_resolution;
-  const int kFrameHeight = frame_buffer_config_ref.vertical_resolution;
+  const int kFrameWidth = frame_buffer_config.horizontal_resolution;
+  const int kFrameHeight = frame_buffer_config.vertical_resolution;
 
   FillRectangle(*pixel_writer,
                 {0, 0},
@@ -151,22 +159,38 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig &frame_buffer_config_
 
   SetupIdentityPageTable();
 
+  // #@@range_begin(mark_allocated)
+  ::memory_manager = new (memory_manager_buf) BitmapMemoryManager;
+
   const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
+  uintptr_t available_end = 0;
   for (uintptr_t iter = memory_map_base;
        iter < memory_map_base + memory_map.map_size;
        iter += memory_map.descriptor_size)
   {
-    auto desc = reinterpret_cast<MemoryDescriptor *>(iter);
+    auto desc = reinterpret_cast<const MemoryDescriptor *>(iter);
+    if (available_end < desc->physical_start)
+    {
+      memory_manager->MarkAllocated(
+          FrameID{available_end / kBytesPerFrame},
+          (desc->physical_start - available_end) / kBytesPerFrame);
+    }
+
+    const auto physical_end =
+        desc->physical_start + desc->number_of_pages * kUEFIPageSize;
     if (IsAvailable(static_cast<MemoryType>(desc->type)))
     {
-      printk("type = %u, phys = %08lx - %08lx, pages = %lu, attr = %08lx\n",
-             desc->type,
-             desc->physical_start,
-             desc->physical_start + desc->number_of_pages * 4096 - 1,
-             desc->number_of_pages,
-             desc->attribute);
+      available_end = physical_end;
+    }
+    else
+    {
+      memory_manager->MarkAllocated(
+          FrameID{desc->physical_start / kBytesPerFrame},
+          desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
     }
   }
+  memory_manager->SetMemoryRange(FrameID{1}, FrameID{available_end / kBytesPerFrame});
+  // #@@range_end(mark_allocated)
 
   mouse_cursor = new (mouse_cursor_buf) MouseCursor{
       pixel_writer, kDesktopBGColor, {300, 200}};
@@ -188,6 +212,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig &frame_buffer_config_
         vendor_id, class_code, dev.header_type);
   }
 
+  // Intel 製を優先して xHC を探す
   pci::Device *xhc_dev = nullptr;
   for (int i = 0; i < pci::num_device; ++i)
   {
