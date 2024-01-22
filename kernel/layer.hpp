@@ -18,45 +18,44 @@
  * 現状では 1 つのウィンドウしか保持できない設計だが，
  * 将来的には複数のウィンドウを持ち得る。
  */
-// #@@range_begin(layer)
-class Layer {
- public:
+class Layer
+{
+public:
   /** @brief 指定された ID を持つレイヤーを生成する。 */
   Layer(unsigned int id = 0);
   /** @brief このインスタンスの ID を返す。 */
   unsigned int ID() const;
 
   /** @brief ウィンドウを設定する。既存のウィンドウはこのレイヤーから外れる。 */
-  Layer& SetWindow(const std::shared_ptr<Window>& window);
+  Layer &SetWindow(const std::shared_ptr<Window> &window);
   /** @brief 設定されたウィンドウを返す。 */
   std::shared_ptr<Window> GetWindow() const;
 
   /** @brief レイヤーの位置情報を指定された絶対座標へと更新する。再描画はしない。 */
-  Layer& Move(Vector2D<int> pos);
+  Layer &Move(Vector2D<int> pos);
   /** @brief レイヤーの位置情報を指定された相対座標へと更新する。再描画はしない。 */
-  Layer& MoveRelative(Vector2D<int> pos_diff);
+  Layer &MoveRelative(Vector2D<int> pos_diff);
 
-  /** @brief writer に現在設定されているウィンドウの内容を描画する。 */
-  void DrawTo(PixelWriter& writer) const;
+  /** @brief 指定された描画先にウィンドウの内容を描画する。 */
+  void DrawTo(FrameBuffer &screen) const;
 
- private:
+private:
   unsigned int id_;
   Vector2D<int> pos_;
   std::shared_ptr<Window> window_;
 };
-// #@@range_end(layer)
 
 /** @brief LayerManager は複数のレイヤーを管理する。 */
-// #@@range_begin(layer_manager)
-class LayerManager {
- public:
+class LayerManager
+{
+public:
   /** @brief Draw メソッドなどで描画する際の描画先を設定する。 */
-  void SetWriter(PixelWriter* writer);
+  void SetWriter(FrameBuffer *screen);
   /** @brief 新しいレイヤーを生成して参照を返す。
    *
    * 新しく生成されたレイヤーの実体は LayerManager 内部のコンテナで保持される。
    */
-  Layer& NewLayer();
+  Layer &NewLayer();
 
   /** @brief 現在表示状態にあるレイヤーを描画する。 */
   void Draw() const;
@@ -76,14 +75,15 @@ class LayerManager {
   /** @brief レイヤーを非表示とする。 */
   void Hide(unsigned int id);
 
- private:
-  PixelWriter* writer_{nullptr};
+  // #@@range_begin(layermgr_fields)
+private:
+  FrameBuffer *screen_{nullptr};
   std::vector<std::unique_ptr<Layer>> layers_{};
-  std::vector<Layer*> layer_stack_{};
+  std::vector<Layer *> layer_stack_{};
   unsigned int latest_id_{0};
+  // #@@range_end(layermgr_fields)
 
-  Layer* FindLayer(unsigned int id);
+  Layer *FindLayer(unsigned int id);
 };
 
-extern LayerManager* layer_manager;
-// #@@range_end(layer_manager)
+extern LayerManager *layer_manager;

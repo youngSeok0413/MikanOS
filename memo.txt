@@ -37,3 +37,4 @@ sudo python3 ../tools/makefont.py -o $@ $<
 
 
 //original한 방법으로 한 번 트라이해봐, 왜 안됨?
+계속 꺼졌다가 켜졌다가 할 때는, 부트로더 재빌드 해볼 것
